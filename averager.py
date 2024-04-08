@@ -30,7 +30,7 @@ for y in years:
     subprocess.run(["python", "scraper.py", "-y", str(y)])
 
     ### EXTRACT ###
-    files = glob.glob(f"calfire_{y}_summary_*.md")
+    files = glob.glob(f"data/calfire_{y}_summary_*.md")
     filename = max(files, key=os.path.getmtime)
 
     print("Extracting totals from {}...\n\n".format(y))
@@ -48,7 +48,7 @@ for y in years:
 
 print("Writing results to markdown file...\n\n")
 
-results_file = "calfire_avg_{}.md".format(now)
+results_file = "data/calfire_avg_{}.md".format(now)
 
 title = "# California Wildfire Statistics (Averaged): {}\n\n".format(now)
 subtitle = "Years: {}\n\n".format(', '.join(years))

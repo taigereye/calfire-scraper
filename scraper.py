@@ -2,6 +2,8 @@ import argparse
 from collections import defaultdict
 from datetime import datetime
 import json
+import time 
+
 from bs4 import BeautifulSoup
 
 from selenium import webdriver
@@ -48,10 +50,6 @@ while True:
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-    # Write the contents of soup to a file
-    with open("soup.html", "w") as file:
-        file.write(str(soup))
-
     # Desired results
     topline_summary_stats = []
 
@@ -96,10 +94,10 @@ while True:
 
     # Find the "Next" button and click it, or end the loop if there's no button
     try:
-        
-        next_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'next-button')))
-        next_button.click()
-    except:
+        selector = ".paginate_button.next:not(.disabled)"
+        next_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+        driver.execute_script("arguments[0].click();", next_button)
+    except Exception as e:
         break
 
 # Close browser
@@ -170,7 +168,7 @@ if args.r:
 
 print("Writing results to markdown file...\n\n")
 
-results_file = "calfire_{}_summary_{}.md".format(year, now)
+results_file = "data/calfire_{}_summary_{}.md".format(year, now)
 
 title = "# {} California Wildfire Statistics: {}\n\n".format(year, now)
 results = "\n".join([
