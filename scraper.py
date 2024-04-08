@@ -11,7 +11,7 @@ now = datetime.now().strftime("%Y-%m-%d_%H--%M--%S")
 
 parser = argparse.ArgumentParser(description="Web scraper for stats on California wildfire season")
 
-parser.add_argument("-y", help="year of fire season in YYYY form")
+parser.add_argument("-y", required=True, help="year of fire season in YYYY form")
 parser.add_argument("-r", action='store_true', help="also save raw data in a separate file")
 args = parser.parse_args()
 year = args.y
@@ -92,7 +92,10 @@ if response.status_code == 200:
     wildfires_per_county = [{"county": c, "n_wildfires": 0} for c in C.ALL_COUNTIES]
     for wildfire in all_wildfires:
         for c in wildfire["counties"]:
-            wildfires_per_county[C.ALL_COUNTIES.index(c)]["n_wildfires"] += 1
+            if c in C.ALL_COUNTIES:
+                wildfires_per_county[C.ALL_COUNTIES.index(c)]["n_wildfires"] += 1
+            else:
+                continue
 
     # Totals for Northern and Southern CA vs PG&E service area
     template = {
@@ -114,12 +117,12 @@ if response.status_code == 200:
             n_wildfires_by_region["pge_area"] += 1
             acres_burned_by_region["pge_area"] += wildfire["acres_burned"]
     
-    ### SAVE ###
+    ### RAW DATA ###
 
     if args.r:
         print("Writing raw data to text file...\n\n")
 
-        raw_file = "calfire_raw_data_{}.txt".format(now)
+        raw_file = "calfire_{}_raw_data_{}.txt".format(year, now)
 
         data_to_format = [
             topline_summary_stats,
@@ -135,33 +138,31 @@ if response.status_code == 200:
         file.write(data)
         file.close()
 
-    ### PRINT ###
+    ### FINAL RESULTS ###
 
     print("Writing results to markdown file...\n\n")
 
-    results_file = "calfire_summary_{}.md".format(now)
+    results_file = "calfire_{}_summary_{}.md".format(year, now)
 
     title = "# {} California Wildfire Statistics: {}\n\n".format(year, now)
-    results = "\n".join(
-        [
-            "## Summary\n",
-            "\n".join(["{}: {}".format(s["label"], s["value"]) for s in topline_summary_stats]),
-            "\n",
-            "## Wildfires by county\n",
-            "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
-            "\n",
-            "## Wildfires by region\n",
-            "### {}:".format(C.NORTHERN_CA_STR),
-            "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
-            "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
-            "### {}:".format(C.SOUTHERN_CA_STR),
-            "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
-            "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
-            "### {}:".format(C.PGE_STR),
-            "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
-            "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
-        ]
-    )
+    results = "\n".join([
+        "## Summary\n",
+        "\n".join(["{}: {}".format(s["label"], s["value"]) for s in topline_summary_stats]),
+        "\n",
+        "## Wildfires by county\n",
+        "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
+        "\n",
+        "## Wildfires by region\n",
+        "### {}:".format(C.NORTHERN_CA_STR),
+        "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
+        "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
+        "### {}:".format(C.SOUTHERN_CA_STR),
+        "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
+        "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
+        "### {}:".format(C.PGE_STR),
+        "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
+        "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
+    ])
 
     file = open(results_file, "w")
     file.write(title)

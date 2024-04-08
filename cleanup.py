@@ -11,9 +11,10 @@ type = args.f
 print("\n")
 
 raw_files = glob.glob('*calfire_raw_data*')
-results_files = glob.glob('*calfire_summary*')
+summary_files = glob.glob('*calfire_*_summary*')
+avg_files = glob.glob('*calfire_avg*')
 
-files = raw_files if type == "raw" else results_files
+files = raw_files if type == "raw" else summary_files + avg_files
 
 for file in files:
     confirm = input(f"Are you sure you want to delete {file}? (yes/no) ")
