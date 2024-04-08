@@ -5,8 +5,9 @@ import json
 from bs4 import BeautifulSoup
 
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -25,9 +26,14 @@ year = args.y
 
 print("\n")
 
+# # Headless browser to improve load time
+# browser_options = Options()
+# browser_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+
 # Spin up browser to scrape + interact with webpage
 url = "https://fire.ca.gov/incidents/{}".format(year)
 driver = webdriver.Firefox()
+driver.set_page_load_timeout(30)
 driver.get(url)
 
 ### SCRAPE ###
@@ -36,7 +42,7 @@ print("Scraping CalFire...\n\n")
 
 while True:
     try:
-        driver.find_element_by_tag_name('body')
+        driver.find_element(By.TAG_NAME, 'body')
     except NoSuchElementException:
         print("Page failed to load.")
 
