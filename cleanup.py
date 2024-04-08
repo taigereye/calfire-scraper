@@ -8,6 +8,8 @@ parser.add_argument("-f", help="which files to delete: raw or results")
 args = parser.parse_args()
 type = args.f
 
+print("\n")
+
 raw_files = glob.glob('*calfire_raw_data*')
 results_files = glob.glob('*calfire_summary*')
 

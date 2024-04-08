@@ -1,3 +1,7 @@
+NORTHERN_CA_STR = "Northern CA"
+SOUTHERN_CA_STR = "Southern CA"
+PGE_STR = "PG&E service area"
+
 NORTHERN_CA_COUNTIES = [
     "Alameda",
     "Alpine",

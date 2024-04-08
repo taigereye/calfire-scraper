@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import constants as C
 from collections import defaultdict
 
-now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+now = datetime.now().strftime("%Y-%m-%d_%H--%M--%S")
 
 parser = argparse.ArgumentParser(description="Web scraper for stats on California wildfire season")
 
@@ -15,6 +15,8 @@ parser.add_argument("-y", help="year of fire season in YYYY form")
 parser.add_argument("-r", action='store_true', help="also save raw data in a separate file")
 args = parser.parse_args()
 year = args.y
+
+print("\n")
 
 # Construct and send request
 url = "https://fire.ca.gov/incidents/{}".format(year)
@@ -149,13 +151,13 @@ if response.status_code == 200:
             "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
             "\n",
             "## Wildfires by region\n",
-            "### Northern CA:",
+            "### {}:".format(C.NORTHERN_CA_STR),
             "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
-            "### Southern CA:",
+            "### {}:".format(C.SOUTHERN_CA_STR),
             "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
-            "### PG&E service area:",
+            "### {}:".format(C.PGE_STR),
             "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
         ]
