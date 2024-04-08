@@ -54,49 +54,43 @@ if response.status_code == 200:
 
     # Wildfires by county
     #   Collect outer elements
-    outer_selector = "#incidents > tbody > tr"
-    outer_elements = soup.select(outer_selector)
-    inner_elements = [o.select("li") for o in outer_elements]
+    row_selector = "#incidents tbody tr"
+    row_elements = soup.select(row_selector)
     #   Create data struct
     all_wildfires = []
-    for uls in inner_elements:
-        for ul in uls:
-            # Grab each of the 4 properties of a wildfire
-            for li in ul:
-                # County
-                counties_element = li.select_one('span.dtr-title:contains("Counties")')
-                counties = counties_element.find_next_sibling('span', class_='dtr-data') or None
-                # Date started
-                started_element = li.select_one('span.dtr-title:contains("Started")')
-                started = started_element.find_next_sibling('span', class_='dtr-data') or None
-                # Acres burned
-                acres_element = li.select_one('span.dtr-title:contains("Acres")')
-                acres = acres_element.find_next_sibling('span', class_='dtr-data') or None
-                # Containment
-                containment_element = li.select_one('span.dtr-title:contains("Containment")')
-                containment = containment_element.find_next_sibling('span', class_='dtr-data') or None
-            wildfire = {
-                "counties": counties.split(", "),
-                "started_date": datetime.strptime(started, "%m/%d/%Y").date(),
-                "acres_burned": int(acres),
-                "containment": int(containment.replace('%', ''))
-            }
-            all_wildfires.append(wildfire)
+    for r in row_elements:
+        property_elements = r.select('td')
+        # Counties
+        counties = property_elements[0].text.strip()
+        # Date started
+        started = property_elements[1].text.strip()
+        # Acres burned
+        acres = property_elements[2].text.strip().replace(',', '')
+        if "External Incident Link" in acres or len(acres) == 0:
+            continue
+        # Containment
+        containment = property_elements[3].text.strip()
+        wildfire = {
+            "counties": counties.split(", "),
+            "started_date": datetime.strptime(started, "%m/%d/%Y").date(),
+            "acres_burned": int(acres),
+            "containment": int(containment.replace('%', ''))
+        }
+        all_wildfires.append(wildfire)
     
     ### ENRICH ###
 
     print("Calculating additional statistics...\n\n")
 
     for wildfire in all_wildfires:
-        wildfire.is_northern = wildfire["counties"][0] in C.NORTHERN_CA_COUNTIES
-        wildfire.is_pge = wildfire["counties"][0] in C.PGE_SERVICE_COUNTIES
+        wildfire["is_northern"] = wildfire["counties"][0] in C.NORTHERN_CA_COUNTIES
+        wildfire["is_pge"] = wildfire["counties"][0] in C.PGE_SERVICE_COUNTIES
 
     # Number of wildfires per county
-    wildfires_per_county = defaultdict(int)
+    wildfires_per_county = [{"county": c, "n_wildfires": 0} for c in C.ALL_COUNTIES]
     for wildfire in all_wildfires:
-        for county in wildfire["counties"]:
-            wildfires_per_county["county"] = county
-            wildfires_per_county["n_wildfires"] += 1
+        for c in wildfire["counties"]:
+            wildfires_per_county[C.ALL_COUNTIES.index(c)]["n_wildfires"] += 1
 
     # Totals for Northern and Southern CA vs PG&E service area
     template = {
@@ -108,13 +102,13 @@ if response.status_code == 200:
     n_wildfires_by_region = template.copy()
 
     for wildfire in all_wildfires:
-        if wildfire.is_northern:
+        if wildfire["is_northern"]:
             n_wildfires_by_region["northern_ca"] += 1
             acres_burned_by_region["northern_ca"] += wildfire["acres_burned"]
         else:
             n_wildfires_by_region["southern_ca"] += 1
             acres_burned_by_region["southern_ca"] += wildfire["acres_burned"]
-        if wildfire.is_pge:
+        if wildfire["is_pge"]:
             n_wildfires_by_region["pge_area"] += 1
             acres_burned_by_region["pge_area"] += wildfire["acres_burned"]
     
@@ -152,16 +146,16 @@ if response.status_code == 200:
             "\n".join(["{}: {}".format(s["label"], s["value"]) for s in topline_summary_stats]),
             "\n",
             "## Wildfires by county\n",
-            "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county.values()]),
+            "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
             "\n",
             "## Wildfires by region\n",
-            "Northern CA:",
+            "### Northern CA:",
             "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
-            "Southern CA:",
+            "### Southern CA:",
             "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
-            "PG&E service area:",
+            "### PG&E service area:",
             "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
             "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
         ]

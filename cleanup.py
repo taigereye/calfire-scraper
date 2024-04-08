@@ -23,4 +23,7 @@ for file in files:
     else:
         print(f"\nSkipped: {file}")
 
-print("\nDone.")
+if len(files) >= 1:
+    print("\nDone.")
+else:
+    print("No files to delete.")
