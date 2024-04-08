@@ -1,11 +1,18 @@
 import argparse
+from collections import defaultdict
 from datetime import datetime
 import json
-import requests
 from bs4 import BeautifulSoup
 
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 import constants as C
-from collections import defaultdict
+
+### INITIALIZE ###
 
 now = datetime.now().strftime("%Y-%m-%d_%H--%M--%S")
 
@@ -18,21 +25,22 @@ year = args.y
 
 print("\n")
 
-# Construct and send request
+# Spin up browser to scrape + interact with webpage
 url = "https://fire.ca.gov/incidents/{}".format(year)
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
-}
-response = requests.get(url, headers=headers)
+driver = webdriver.Firefox()
+driver.get(url)
 
-# Successfully connected
-if response.status_code == 200:
+### SCRAPE ###
 
-    ### SCRAPE ###
+print("Scraping CalFire...\n\n")
 
-    print("Scraping CalFire...\n\n")
+while True:
+    try:
+        driver.find_element_by_tag_name('body')
+    except NoSuchElementException:
+        print("Page failed to load.")
 
-    soup = BeautifulSoup(response.content, 'html.parser')
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
 
     # Write the contents of soup to a file
     with open("soup.html", "w") as file:
@@ -79,98 +87,108 @@ if response.status_code == 200:
             "containment": int(containment.replace('%', ''))
         }
         all_wildfires.append(wildfire)
+
+    # Find the "Next" button and click it, or end the loop if there's no button
+    try:
+        
+        next_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'next-button')))
+        next_button.click()
+    except:
+        break
+
+# Close browser
+driver.quit()
+
     
-    ### ENRICH ###
+### ENRICH ###
 
-    print("Calculating additional statistics...\n\n")
+print("Calculating additional statistics...\n\n")
 
-    for wildfire in all_wildfires:
-        wildfire["is_northern"] = wildfire["counties"][0] in C.NORTHERN_CA_COUNTIES
-        wildfire["is_pge"] = wildfire["counties"][0] in C.PGE_SERVICE_COUNTIES
+for wildfire in all_wildfires:
+    wildfire["is_northern"] = wildfire["counties"][0] in C.NORTHERN_CA_COUNTIES
+    wildfire["is_pge"] = wildfire["counties"][0] in C.PGE_SERVICE_COUNTIES
 
-    # Number of wildfires per county
-    wildfires_per_county = [{"county": c, "n_wildfires": 0} for c in C.ALL_COUNTIES]
-    for wildfire in all_wildfires:
-        for c in wildfire["counties"]:
-            if c in C.ALL_COUNTIES:
-                wildfires_per_county[C.ALL_COUNTIES.index(c)]["n_wildfires"] += 1
-            else:
-                continue
-
-    # Totals for Northern and Southern CA vs PG&E service area
-    template = {
-        "northern_ca": 0,
-        "southern_ca": 0,
-        "pge_area": 0
-    }
-    acres_burned_by_region = template.copy()
-    n_wildfires_by_region = template.copy()
-
-    for wildfire in all_wildfires:
-        if wildfire["is_northern"]:
-            n_wildfires_by_region["northern_ca"] += 1
-            acres_burned_by_region["northern_ca"] += wildfire["acres_burned"]
+# Number of wildfires per county
+wildfires_per_county = [{"county": c, "n_wildfires": 0} for c in C.ALL_COUNTIES]
+for wildfire in all_wildfires:
+    for c in wildfire["counties"]:
+        if c in C.ALL_COUNTIES:
+            wildfires_per_county[C.ALL_COUNTIES.index(c)]["n_wildfires"] += 1
         else:
-            n_wildfires_by_region["southern_ca"] += 1
-            acres_burned_by_region["southern_ca"] += wildfire["acres_burned"]
-        if wildfire["is_pge"]:
-            n_wildfires_by_region["pge_area"] += 1
-            acres_burned_by_region["pge_area"] += wildfire["acres_burned"]
+            continue
+
+# Totals for Northern and Southern CA vs PG&E service area
+template = {
+    "northern_ca": 0,
+    "southern_ca": 0,
+    "pge_area": 0
+}
+acres_burned_by_region = template.copy()
+n_wildfires_by_region = template.copy()
+
+for wildfire in all_wildfires:
+    if wildfire["is_northern"]:
+        n_wildfires_by_region["northern_ca"] += 1
+        acres_burned_by_region["northern_ca"] += wildfire["acres_burned"]
+    else:
+        n_wildfires_by_region["southern_ca"] += 1
+        acres_burned_by_region["southern_ca"] += wildfire["acres_burned"]
+    if wildfire["is_pge"]:
+        n_wildfires_by_region["pge_area"] += 1
+        acres_burned_by_region["pge_area"] += wildfire["acres_burned"]
+
     
-    ### RAW DATA ###
+### WRITE RAW DATA ###
 
-    if args.r:
-        print("Writing raw data to text file...\n\n")
+if args.r:
+    print("Writing raw data to text file...\n\n")
 
-        raw_file = "calfire_{}_raw_data_{}.txt".format(year, now)
+    raw_file = "calfire_{}_raw_data_{}.txt".format(year, now)
 
-        data_to_format = [
-            topline_summary_stats,
-            wildfires_per_county,
-            n_wildfires_by_region,
-            acres_burned_by_region
-        ]
-        data = "\n\n".join(
-            [json.dumps(d, indent=4) for d in data_to_format]
-        )
+    data_to_format = [
+        topline_summary_stats,
+        wildfires_per_county,
+        n_wildfires_by_region,
+        acres_burned_by_region
+    ]
+    data = "\n\n".join(
+        [json.dumps(d, indent=4) for d in data_to_format]
+    )
 
-        file = open(raw_file, "w")
-        file.write(data)
-        file.close()
-
-    ### FINAL RESULTS ###
-
-    print("Writing results to markdown file...\n\n")
-
-    results_file = "calfire_{}_summary_{}.md".format(year, now)
-
-    title = "# {} California Wildfire Statistics: {}\n\n".format(year, now)
-    results = "\n".join([
-        "## Summary\n",
-        "\n".join(["{}: {}".format(s["label"], s["value"]) for s in topline_summary_stats]),
-        "\n",
-        "## Wildfires by county\n",
-        "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
-        "\n",
-        "## Wildfires by region\n",
-        "### {}:".format(C.NORTHERN_CA_STR),
-        "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
-        "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
-        "### {}:".format(C.SOUTHERN_CA_STR),
-        "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
-        "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
-        "### {}:".format(C.PGE_STR),
-        "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
-        "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
-    ])
-
-    file = open(results_file, "w")
-    file.write(title)
-    file.write(results)
+    file = open(raw_file, "w")
+    file.write(data)
     file.close()
 
-    print("Done.\n")
 
-# Failed to connect
-else:
-    print(f"Failed to connect to {url}. Status code: {response.status_code}\n")
+### WRITE RESULTS ###
+
+print("Writing results to markdown file...\n\n")
+
+results_file = "calfire_{}_summary_{}.md".format(year, now)
+
+title = "# {} California Wildfire Statistics: {}\n\n".format(year, now)
+results = "\n".join([
+    "## Summary\n",
+    "\n".join(["{}: {}".format(s["label"], s["value"]) for s in topline_summary_stats]),
+    "\n",
+    "## Wildfires by county\n",
+    "\n".join(["{}: {}\n".format(w["county"], w["n_wildfires"]) for w in wildfires_per_county]),
+    "\n",
+    "## Wildfires by region\n",
+    "### {}:".format(C.NORTHERN_CA_STR),
+    "Total fires: {}".format(n_wildfires_by_region["northern_ca"]),
+    "Total acres burned: {}\n".format(acres_burned_by_region["northern_ca"]),
+    "### {}:".format(C.SOUTHERN_CA_STR),
+    "Total fires: {}".format(n_wildfires_by_region["southern_ca"]),
+    "Total acres burned: {}\n".format(acres_burned_by_region["southern_ca"]),
+    "### {}:".format(C.PGE_STR),
+    "Total fires: {}".format(n_wildfires_by_region["pge_area"]),
+    "Total acres burned: {}\n".format(acres_burned_by_region["pge_area"])
+])
+
+file = open(results_file, "w")
+file.write(title)
+file.write(results)
+file.close()
+
+print("Done.\n")
