@@ -4,7 +4,7 @@ import glob
 import math
 import re
 
-import constants as C
+import utils.constants as C
 
 parser = argparse.ArgumentParser(description="Simple tests to see if data scraped correctly")
 

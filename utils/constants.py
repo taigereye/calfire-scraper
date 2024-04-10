@@ -1,5 +1,8 @@
+import os
+
 SINGLE = "single"
 MULTIPLE = "multiple"
+PATH_TO_SCRAPER = os.path.abspath('scrape.py')
 
 NORTHERN_CA_STR = "Northern CA"
 SOUTHERN_CA_STR = "Southern CA"
